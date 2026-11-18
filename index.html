@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مكوك</title>
+<style>
+:root{--blue:#1E6FE0;--dark:#0B4DB0;--light:#EAF2FF;--text:#16233A}
+*{box-sizing:border-box}
+body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--light);color:var(--text)}
+header{background:var(--blue);color:#fff;padding:14px;text-align:center}
+header .en{font-size:28px;font-weight:900;letter-spacing:2px}
+header .ar{font-size:20px;font-weight:700}
+main{max-width:480px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(30,111,224,.15)}
+h2{margin:0 0 12px;font-size:18px;color:var(--dark)}
+label{display:block;margin:10px 0 4px;font-size:14px}
+input,textarea{width:100%;padding:12px;border:1px solid #b9cdee;border-radius:10px;font-size:16px;font-family:inherit}
+textarea{min-height:70px}
+button{width:100%;padding:13px;margin-top:12px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-size:16px;font-weight:700;font-family:inherit}
+button.second{background:#fff;color:var(--blue);border:2px solid var(--blue)}
+button.link{background:none;color:var(--dark);margin-top:0;width:auto;padding:4px 8px;font-size:14px}
+.msg{margin-top:10px;font-size:14px;color:#c0392b;min-height:18px}
+.ok{color:#1e8e3e}
+.order{border-right:5px solid var(--blue);background:var(--light);border-radius:10px;padding:10px;margin-top:10px;font-size:14px}
+.order b{color:var(--dark)}
+.status{display:inline-block;background:var(--blue);color:#fff;border-radius:20px;padding:2px 10px;font-size:12px;margin-top:6px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="en">MAKOOK</div>
+  <div class="ar">◄ مكوك ►</div>
+</header>
+<main>
+
+  <section id="authView" class="card">
+    <h2>أهلاً بك في مكوك</h2>
+    <label>البريد الإلكتروني (الإيميل)</label>
+    <input id="email" type="email" dir="ltr" autocomplete="email">
+    <label>كلمة السر (6 أحرف على الأقل)</label>
+    <input id="password" type="password" dir="ltr" autocomplete="current-password">
+    <button id="loginBtn">تسجيل الدخول</button>
+    <button id="signupBtn" class="second">إنشاء حساب جديد</button>
+    <div id="authMsg" class="msg"></div>
+  </section>
+
+  <section id="appView" class="hidden">
+    <div class="top">
+      <span id="who" style="font-size:13px"></span>
+      <button id="logoutBtn" class="link">تسجيل الخروج</button>
+    </div>
+
+    <div class="card">
+      <h2>طلب توصيل جديد</h2>
+      <label>شو بدك نوصّل؟</label>
+      <textarea id="what" placeholder="مثال: طلبية من المطعم، أو ورقة، أو أي شي"></textarea>
+      <label>من وين نستلم؟ (العنوان)</label>
+      <input id="from">
+      <label>لوين نوصّل؟ (العنوان)</label>
+      <input id="to">
+      <label>رقم هاتفك</label>
+      <input id="phone" type="tel" dir="ltr">
+      <label>ملاحظات (اختياري)</label>
+      <input id="notes">
+      <button id="sendBtn">إرسال الطلب</button>
+      <div id="orderMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>طلباتي</h2>
+      <div id="orders">لا يوجد طلبات بعد.</div>
+    </div>
+  </section>
+
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAlF9jvQl1uj80oezSNbWpvjbDudWjLEP8",
+  authDomain: "makook-b0ded.firebaseapp.com",
+  projectId: "makook-b0ded",
+  storageBucket: "makook-b0ded.firebasestorage.app",
+  messagingSenderId: "770937638862",
+  appId: "1:770937638862:web:8393afcf92a5527ec2a59f",
+  measurementId: "G-92ZTECBZ42"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = (id) => document.getElementById(id);
+
+const errors = {
+  "auth/invalid-email": "الإيميل مكتوب غلط.",
+  "auth/missing-password": "اكتب كلمة السر.",
+  "auth/weak-password": "كلمة السر ضعيفة، اكتب 6 أحرف على الأقل.",
+  "auth/email-already-in-use": "هالإيميل مسجّل من قبل، اضغط تسجيل الدخول.",
+  "auth/invalid-credential": "الإيميل أو كلمة السر غلط.",
+  "auth/user-not-found": "ما في حساب بهالإيميل.",
+  "auth/wrong-password": "كلمة السر غلط.",
+  "auth/network-request-failed": "في مشكلة بالإنترنت.",
+  "auth/unauthorized-domain": "هالرابط غير مسموح بـ Firebase، لازم نضيفه."
+};
+const errText = (e) => errors[e.code] || ("صار خطأ: " + (e.code || e.message));
+
+$("loginBtn").onclick = async () => {
+  $("authMsg").textContent = "";
+  try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("password").value); }
+  catch (e) { $("authMsg").textContent = errText(e); }
+};
+$("signupBtn").onclick = async () => {
+  $("authMsg").textContent = "";
+  try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("password").value); }
+  catch (e) { $("authMsg").textContent = errText(e); }
+};
+$("logoutBtn").onclick = () => signOut(auth);
+
+let unsub = null;
+onAuthStateChanged(auth, (user) => {
+  if (unsub) { unsub(); unsub = null; }
+  if (!user) {
+    $("authView").classList.remove("hidden");
+    $("appView").classList.add("hidden");
+    return;
+  }
+  $("authView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+  $("who").textContent = user.email;
+  const q = query(collection(db, "orders"), where("uid", "==", user.uid));
+  unsub = onSnapshot(q, (snap) => {
+    const list = snap.docs.map((d) => d.data());
+    list.sort((a, b) => (b.createdAt?.seconds || 9e9) - (a.createdAt?.seconds || 9e9));
+    const box = $("orders");
+    box.textContent = "";
+    if (!list.length) { box.textContent = "لا يوجد طلبات بعد."; return; }
+    list.forEach((o) => {
+      const div = document.createElement("div");
+      div.className = "order";
+      const when = o.createdAt ? o.createdAt.toDate().toLocaleString("ar") : "الآن";
+      const lines = [["الطلب", o.what], ["من", o.from], ["إلى", o.to], ["الوقت", when]];
+      lines.forEach(([k, v]) => {
+        const p = document.createElement("div");
+        const b = document.createElement("b");
+        b.textContent = k + ": ";
+        p.append(b, document.createTextNode(v));
+        div.append(p);
+      });
+      const s = document.createElement("span");
+      s.className = "status";
+      s.textContent = o.status;
+      div.append(s);
+      box.append(div);
+    });
+  }, (e) => { $("orders").textContent = "تعذّر تحميل الطلبات: " + (e.code || e.message); });
+});
+
+$("sendBtn").onclick = async () => {
+  const m = $("orderMsg");
+  m.className = "msg";
+  const user = auth.currentUser;
+  const data = {
+    what: $("what").value.trim(),
+    from: $("from").value.trim(),
+    to: $("to").value.trim(),
+    phone: $("phone").value.trim(),
+    notes: $("notes").value.trim()
+  };
+  if (!data.what || !data.from || !data.to || !data.phone) {
+    m.textContent = "عبّي كل الخانات المطلوبة.";
+    return;
+  }
+  try {
+    await addDoc(collection(db, "orders"), { ...data, uid: user.uid, email: user.email, status: "جديد", createdAt: serverTimestamp() });
+    ["what", "from", "to", "phone", "notes"].forEach((id) => ($(id).value = ""));
+    m.className = "msg ok";
+    m.textContent = "تم إرسال الطلب ✅";
+  } catch (e) {
+    m.textContent = "ما انرسل الطلب: " + (e.code || e.message);
+  }
+};
+</script>
+</body>
+</html>
